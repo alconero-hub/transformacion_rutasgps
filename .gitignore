@@ -1,0 +1,15 @@
+## 2. El archivo `.gitignore` (Buenas prácticas)
+Cuando trabajas con datos de GPS, a veces tus archivos `.tcx` o `.gpx` reales contienen la ubicación de tu casa o rutas privadas que **no quieres que se hagan públicas en internet**.
+
+Para evitar subir por error tus entrenamientos reales a GitHub, crea un archivo llamado exactamente `.gitignore` y añade estas líneas:
+
+```text
+# Ignorar archivos de datos reales (rutas y entrenamientos)
+*.tcx
+*.gpx
+*.csv
+*.json
+
+# Ignorar archivos del sistema o entornos virtuales
+__pycache__/
+.DS_Store
