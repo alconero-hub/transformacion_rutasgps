@@ -83,7 +83,7 @@ def tcx_a_gpx(ruta_tcx, ruta_gpx):
 
 # --- EJECUCIÓN DEL SCRIPT ---
 # Cambia estos nombres por tus archivos reales
-archivo_origen = "mi_actividad.tcx"
+archivo_origen = "2026-05-23T11_39_15.696+02_00_PT2H34M2.751S_Correr.tcx"
 archivo_destino = "mi_actividad.gpx"
 
 tcx_a_gpx(archivo_origen, archivo_destino)
