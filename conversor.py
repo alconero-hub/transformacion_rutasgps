@@ -1,11 +1,3 @@
-¡Hecho! Para calcular estas métricas de forma precisa, el script ahora irá acumulando la distancia y calculará los cambios de altitud punto por punto.
-
-Como la distancia que viene en los archivos .tcx a veces tiene pequeños saltos o vacíos, el script utilizará la fórmula del Haversine. Esta fórmula calcula la distancia real en metros sobre la curvatura de la Tierra entre cada par de coordenadas GPS consecutivas (Latitud/Longitud).
-
-Aquí tienes el código completo y actualizado. Al final de la ejecución, mostrará un resumen limpio por pantalla con la distancia total (en km), el desnivel positivo acumulado (en metros) y la altitud máxima alcanzada (en metros).
-
-Código definitivo (conversor.py)
-Python
 import xml.etree.ElementTree as ET
 from datetime import datetime
 import math
