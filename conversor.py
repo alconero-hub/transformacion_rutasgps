@@ -1,8 +1,31 @@
+¡Hecho! Para calcular estas métricas de forma precisa, el script ahora irá acumulando la distancia y calculará los cambios de altitud punto por punto.
+
+Como la distancia que viene en los archivos .tcx a veces tiene pequeños saltos o vacíos, el script utilizará la fórmula del Haversine. Esta fórmula calcula la distancia real en metros sobre la curvatura de la Tierra entre cada par de coordenadas GPS consecutivas (Latitud/Longitud).
+
+Aquí tienes el código completo y actualizado. Al final de la ejecución, mostrará un resumen limpio por pantalla con la distancia total (en km), el desnivel positivo acumulado (en metros) y la altitud máxima alcanzada (en metros).
+
+Código definitivo (conversor.py)
+Python
 import xml.etree.ElementTree as ET
 from datetime import datetime
+import math
+
+def calcular_distancia_haversine(lat1, lon1, lat2, lon2):
+    """Calcula la distancia en metros entre dos coordenadas usando Haversine."""
+    R = 6371000  # Radio de la Tierra en metros
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    delta_phi = math.radians(lat2 - lat1)
+    delta_lambda = math.radians(lon2 - lon1)
+
+    a = math.sin(delta_phi / 2)**2 + \
+        math.cos(phi1) * math.cos(phi2) * \
+        math.sin(delta_lambda / 2)**2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    
+    return R * c
 
 def tcx_a_gpx_y_kml(ruta_tcx, ruta_gpx, ruta_kml):
-    # Namespaces del archivo TCX (Garmin)
     ns_tcx = {'ns': 'http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2'}
     
     try:
@@ -12,16 +35,13 @@ def tcx_a_gpx_y_kml(ruta_tcx, ruta_gpx, ruta_kml):
         print(f"Error al leer el archivo TCX: {e}")
         return
 
-    # -------------------------------------------------------------------------
-    # 1. ESTRUCTURA BASE PARA GPX
-    # -------------------------------------------------------------------------
+    # --- 1. ESTRUCTURAS BASE (GPX y KML) ---
     gpx = ET.Element('gpx', {
         'version': '1.1',
         'creator': 'Python TCX Converter',
         'xmlns': 'http://www.topografix.com/GPX/1/1',
         'xmlns:xsi': 'http://www.w3.org/2001/XMLSchema-instance',
-        'xsi:schemaLocation': 'http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd '
-                               'http://www.garmin.com/xmlschemas/TrackPointExtension/v1 http://www.garmin.com/xmlschemas/TrackPointExtensionv1.xsd',
+        'xsi:schemaLocation': 'http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd',
         'xmlns:gpxtpx': 'http://www.garmin.com/xmlschemas/TrackPointExtension/v1'
     })
     
@@ -32,41 +52,35 @@ def tcx_a_gpx_y_kml(ruta_tcx, ruta_gpx, ruta_kml):
     trk = ET.SubElement(gpx, 'trk')
     trkseg = ET.SubElement(trk, 'trkseg')
 
-    # -------------------------------------------------------------------------
-    # 2. ESTRUCTURA BASE PARA KML
-    # -------------------------------------------------------------------------
     kml = ET.Element('kml', {'xmlns': 'http://www.opengis.net/kml/2.2'})
     document = ET.SubElement(kml, 'Document')
-    
-    # Nombre de la ruta en KML
     name_kml = ET.SubElement(document, 'name')
-    name_kml.text = f"Ruta convertida - {datetime.now().strftime('%Y-%m-%d')}"
+    name_kml.text = f"Ruta - {datetime.now().strftime('%Y-%m-%d')}"
     
-    # Estilo de la línea en Google Earth (Color rojo, ancho de línea 4)
     style = ET.SubElement(document, 'Style', {'id': 'lineaRoja'})
     line_style = ET.SubElement(style, 'LineStyle')
-    color = ET.SubElement(line_style, 'color')
-    color.text = 'ff0000ff'  # Formato AABBGGRR (Opacidad, Azul, Verde, Rojo) -> Rojo opaco
-    width = ET.SubElement(line_style, 'width')
-    width.text = '4'
+    ET.SubElement(line_style, 'color').text = 'ff0000ff'
+    ET.SubElement(line_style, 'width').text = '4'
     
     placemark = ET.SubElement(document, 'Placemark')
-    style_url = ET.SubElement(placemark, 'styleUrl')
-    style_url.text = '#lineaRoja'
-    
+    ET.SubElement(placemark, 'styleUrl').text = '#lineaRoja'
     line_string = ET.SubElement(placemark, 'LineString')
-    # Activamos la altitud absoluta para que se dibuje correctamente en 3D
-    altitude_mode = ET.SubElement(line_string, 'altitudeMode')
-    altitude_mode.text = 'absolute'
-    
+    ET.SubElement(line_string, 'altitudeMode').text = 'absolute'
     coordinates_elem = ET.SubElement(line_string, 'coordinates')
 
-    # -------------------------------------------------------------------------
-    # 3. PROCESAMIENTO DE PUNTOS
-    # -------------------------------------------------------------------------
+    # --- 2. VARIABLES DE MÉTRICAS ---
     lista_coordenadas_kml = []
     puntos_convertidos = 0
+    
+    distancia_total_m = 0.0
+    desnivel_positivo_m = 0.0
+    altitud_maxima_m = -float('inf')
+    
+    ultimo_lat = None
+    ultimo_lon = None
+    ultima_altitud = None
 
+    # --- 3. PROCESAMIENTO DE PUNTOS ---
     for pt in root.findall('.//ns:Trackpoint', ns_tcx):
         lat_elem = pt.find('.//ns:LatitudeDegrees', ns_tcx)
         lon_elem = pt.find('.//ns:LongitudeDegrees', ns_tcx)
@@ -77,52 +91,77 @@ def tcx_a_gpx_y_kml(ruta_tcx, ruta_gpx, ruta_kml):
         if lat_elem is None or lon_elem is None:
             continue
             
-        lat = lat_elem.text
-        lon = lon_elem.text
-        ele = ele_elem.text if ele_elem is not None else "0"
+        lat = float(lat_elem.text)
+        lon = float(lon_elem.text)
+        ele = float(ele_elem.text) if ele_elem is not None else 0.0
+        
+        # CÁLCULO DE DISTANCIA
+        if ultimo_lat is not None and ultimo_lon is not None:
+            distancia_total_m += calcular_distancia_haversine(ultimo_lat, ultimo_lon, lat, lon)
+            
+        # CÁLCULO DE DESNIVEL Y ALTITUD MÁXIMA
+        if ele_elem is not None:
+            if ele > altitud_maxima_m:
+                altitud_maxima_m = ele
+                
+            if ultima_altitud is not None:
+                diferencia_altitud = ele - ultima_altitud
+                if diferencia_altitud > 0:
+                    desnivel_positivo_m += diferencia_altitud
+
+        # Guardar estado para el siguiente punto
+        ultimo_lat = lat
+        ultimo_lon = lon
+        if ele_elem is not None:
+            ultima_altitud = ele
         
         # --- Añadir al GPX ---
-        trkpt = ET.SubElement(trkseg, 'trkpt', {'lat': lat, 'lon': lon})
+        trkpt = ET.SubElement(trkseg, 'trkpt', {'lat': str(lat), 'lon': str(lon)})
         if time_elem is not None:
-            t = ET.SubElement(trkpt, 'time')
-            t.text = time_elem.text
+            ET.SubElement(trkpt, 'time').text = time_elem.text
         if ele_elem is not None:
-            e = ET.SubElement(trkpt, 'ele')
-            e.text = ele
+            ET.SubElement(trkpt, 'ele').text = str(ele)
         if hr_elem is not None:
             extensions = ET.SubElement(trkpt, 'extensions')
             gpxtpx = ET.SubElement(extensions, 'gpxtpx:TrackPointExtension')
-            hr = ET.SubElement(gpxtpx, 'gpxtpx:hr')
-            hr.text = hr_elem.text
+            ET.SubElement(gpxtpx, 'gpxtpx:hr').text = hr_elem.text
 
         # --- Añadir al KML ---
-        # El formato KML requiere: longitud,latitud,altitud (separados por comas, sin espacios)
         lista_coordenadas_kml.append(f"{lon},{lat},{ele}")
-        
         puntos_convertidos += 1
 
-    # Guardamos los puntos en la estructura KML (unidos por espacios o saltos de línea)
+    # Cerrar KML
     coordinates_elem.text = "\n".join(lista_coordenadas_kml)
 
-    # -------------------------------------------------------------------------
-    # 4. ESCRITURA DE ARCHIVOS
-    # -------------------------------------------------------------------------
-    # Guardar GPX
+    # --- 4. ESCRITURA DE ARCHIVOS ---
     tree_gpx = ET.ElementTree(gpx)
     ET.indent(tree_gpx, space="  ", level=0)
     tree_gpx.write(ruta_gpx, encoding='utf-8', xml_declaration=True)
     
-    # Guardar KML
     tree_kml = ET.ElementTree(kml)
     ET.indent(tree_kml, space="  ", level=0)
     tree_kml.write(ruta_kml, encoding='utf-8', xml_declaration=True)
     
-    print(f"¡Hecho! Se han procesado {puntos_convertidos} puntos.")
-    print(f"-> Guardado GPX: {ruta_gpx}")
-    print(f"-> Guardado KML: {ruta_kml}")
+    # Si no se encontraron datos de altitud, ajustamos el máximo a 0
+    if altitud_maxima_m == -float('inf'):
+        altitud_maxima_m = 0.0
+
+    # --- 5. RESUMEN POR PANTALLA ---
+    print("=" * 45)
+    print(" 🚀 PROCESAMIENTO COMPLETADO EXITOSAMENTE")
+    print("=" * 45)
+    print(f" -> Puntos procesados : {puntos_convertidos}")
+    print(f" -> Archivo GPX       : {ruta_gpx}")
+    print(f" -> Archivo KML       : {ruta_kml}")
+    print("-" * 45)
+    print(" 📈 RESUMEN DE LA ACTIVIDAD:")
+    print("-" * 45)
+    print(f" 🏃 Distancia Total    : {distancia_total_m / 1000:.2f} km")
+    print(f" ⛰️  Desnivel Positivo : {desnivel_positivo_m:.0f} m")
+    print(f" 🔝 Altitud Máxima    : {altitud_maxima_m:.0f} m")
+    print("=" * 45)
 
 # --- EJECUCIÓN DEL SCRIPT ---
-# Asegúrate de cambiar el nombre al de tu archivo real
 archivo_origen = "mi_actividad.tcx"
 archivo_gpx = "mi_actividad.gpx"
 archivo_kml = "mi_actividad.kml"
